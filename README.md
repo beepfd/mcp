@@ -40,62 +40,28 @@ go build -o beepf-mcp .
 
 服务器将以标准输入/输出方式启动，可以与支持 MCP 的客户端（例如 [MCPHost](https://github.com/mark3labs/mcphost)）进行交互。
 
-### 与 MCPHost 一起使用
+### Cursor 添加 MCP 配置
 
-1. 安装 MCPHost
-
-```bash
-go install github.com/mark3labs/mcphost@latest
-```
-
-2. 配置 MCPHost 
-
-在 ~/.mcp.json 中添加以下配置：
+在 Cursor 的设置中添加 MCP 配置，添加如下配置：
 
 ```json
 {
   "mcpServers": {
-    "beepf": {
-      "command": "/path/to/beepf-mcp",
-      "args": []
+    "BeePF MCP Server": {
+      "url": "http://192.168.200.200:8080/sse"
     }
   }
 }
 ```
+![Cursor MCP 配置](./docs/beepf-mcp-server.png)
 
-3. 启动 MCPHost
+添加后，在 Cursor 的命令面板中输入 `/tools` 即可看到 MCP 工具列表，选择对应的工具即可使用。
 
-```bash
-mcphost
-```
-
-4. 在 MCPHost 中使用命令
-
-```
-/tools
-```
-
-列出可用工具，然后可以通过交互方式使用这些工具。
+![Cursor MCP 工具列表](./docs/cursor-tool.png)
 
 ## 示例交互
 
-```
-> 请获取系统拓扑信息
-
-使用 topo 工具获取系统拓扑信息...
-系统拓扑信息：节点数 5，连接数 8
-
-> 列出所有节点程序
-
-使用 prog 工具获取节点程序列表...
-节点程序列表：[prog_001, prog_002, prog_003]
-
-> 获取 prog_001 的详细信息
-
-使用 prog_detail 工具获取节点 prog_001 的详情...
-节点程序 prog_001 详情：类型=XDP，运行时间=120s
-```
-
+![Cursor MCP 工具列表](./docs/beepf-mcp-get-details.png)
 ## 联系与贡献
 
 欢迎提交 Issue 和 Pull Request 来改进此项目。

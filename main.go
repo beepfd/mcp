@@ -17,6 +17,24 @@ import (
 	"go.uber.org/zap"
 )
 
+// 创建一个不会被其他包使用的 context key 类型
+type contextKey string
+
+const (
+	// collectorKey 是存储 NodeMetricsCollector 的 context key
+	collectorKey contextKey = "node-metrics-collector"
+)
+
+// 将 collector 注入到 context 中的包装函数
+func withCollector(collector *metrics.NodeMetricsCollector, handler server.ToolHandlerFunc) server.ToolHandlerFunc {
+	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		// 将 collector 注入到 context 中
+		ctx = context.WithValue(ctx, collectorKey, collector)
+		// 调用原始 handler
+		return handler(ctx, request)
+	}
+}
+
 func main() {
 	// 创建 MCP 服务器
 	mcpServer := server.NewMCPServer(
@@ -26,6 +44,17 @@ func main() {
 		server.WithLogging(),
 		server.WithRecovery(),
 	)
+
+	logger, err := zap.NewDevelopment()
+	if err != nil {
+		log.Panicf("Start server failed, error :%v", err)
+	}
+
+	collector, err := metrics.NewNodeMetricsCollector(time.Second, logger)
+	if err != nil {
+		log.Panicf("Start server failed, error :%v", err)
+	}
+	defer collector.Stop()
 
 	// 添加观测性相关接口工具
 	// v1.GET("/observability/topo", topoService.Topo())
@@ -68,7 +97,7 @@ func main() {
 	nodeMetricsTool := mcp.NewTool("node_metrics",
 		mcp.WithDescription("获取节点性能指标数据"),
 	)
-	mcpServer.AddTool(nodeMetricsTool, nodeMetricsHandler)
+	mcpServer.AddTool(nodeMetricsTool, withCollector(collector, nodeMetricsHandler))
 
 	// 处理 Ctrl+C 信号
 	sigChan := make(chan os.Signal, 1)
@@ -200,11 +229,20 @@ func progDumpHandler(ctx context.Context, request mcp.CallToolRequest) (*mcp.Cal
 
 // 处理节点指标数据请求
 func nodeMetricsHandler(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	// 使用metrics包中的NodeMetricsCollector获取节点指标数据
-	nodeCollector, err := metrics.NewNodeMetricsCollector(5*time.Second, zap.NewNop())
+	// 从 context 中获取 collector
+	collector, ok := ctx.Value(collectorKey).(*metrics.NodeMetricsCollector)
+	if !ok || collector == nil {
+		// 如果 context 中没有 collector，使用临时创建一个（这是备用方案）
+		tempCollector, err := metrics.NewNodeMetricsCollector(5*time.Second, zap.NewNop())
+		if err != nil {
+			return nil, fmt.Errorf("创建临时指标收集器失败: %v", err)
+		}
+		defer tempCollector.Stop()
+		collector = tempCollector
+	}
 
 	// 获取节点指标数据
-	nodeMetrics, err := nodeCollector.GetMetrics()
+	nodeMetrics, err := collector.GetMetrics()
 	if err != nil {
 		return nil, fmt.Errorf("获取节点指标数据失败: %v", err)
 	}
